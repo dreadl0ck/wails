@@ -114,6 +114,8 @@ type (
 		snapAssist()
 		setContentProtection(enabled bool)
 		attachModal(modalWindow *WebviewWindow)
+		armFileDragOut(paths []string, imagePath string)
+		disarmFileDragOut()
 	}
 )
 
@@ -591,6 +593,34 @@ func (w *WebviewWindow) SetMaxSize(maxWidth, maxHeight int) Window {
 		})
 	}
 	return w
+}
+
+// ArmFileDragOut arms a native file drag-out for this window. After arming,
+// the next mouse drag over the window starts a native OS drag session carrying
+// the given absolute file paths, so they can be dropped into other applications
+// (Finder, DAWs such as Ableton Live / Pro Tools, etc.).
+//
+// imagePath is an optional path to an image used as the drag cursor preview
+// (e.g. a waveform thumbnail); pass "" for the default file icon.
+//
+// This must be called in response to a frontend pointerdown/dragstart, before
+// the drag begins. Requires EnableFileDragOut in the window options.
+// Currently implemented on macOS; a no-op on other platforms.
+func (w *WebviewWindow) ArmFileDragOut(paths []string, imagePath string) {
+	if w.impl == nil || w.isDestroyed() {
+		return
+	}
+	w.impl.armFileDragOut(paths, imagePath)
+}
+
+// DisarmFileDragOut cancels a previously armed file drag-out so that normal
+// pointer interaction with the webview resumes. It is called automatically when
+// a drag session ends, but can also be called explicitly to abort.
+func (w *WebviewWindow) DisarmFileDragOut() {
+	if w.impl == nil || w.isDestroyed() {
+		return
+	}
+	w.impl.disarmFileDragOut()
 }
 
 // ExecJS executes the given javascript in the context of the window.

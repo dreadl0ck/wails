@@ -15,6 +15,7 @@
 - (WebviewWindow*) initWithContentRect:(NSRect)contentRect styleMask:(NSUInteger)windowStyle backing:(NSBackingStoreType)bufferingType defer:(BOOL)deferCreation;
 
 @property (assign) WKWebView* webView; // We already retain WKWebView since it's part of the Window.
+@property (assign) NSView* dragOutView; // Overlay view enabling native file drag-out (NSDraggingSource).
 
 @end
 
@@ -33,6 +34,13 @@
 @end
 
 void windowSetScreen(void* window, void* screen, int yOffset);
+
+// File drag-out (NSDraggingSource) support.
+// armFileDragOut arms the drag-out overlay with the given NUL-separated file
+// paths and an optional drag image loaded from imagePath (may be NULL/empty).
+void armFileDragOut(void* window, char** paths, int pathCount, char* imagePath);
+// disarmFileDragOut disables the drag-out overlay (pointer events pass through).
+void disarmFileDragOut(void* window);
 
 // Liquid Glass support functions
 bool isLiquidGlassSupported();

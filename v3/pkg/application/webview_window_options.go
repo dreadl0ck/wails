@@ -109,6 +109,17 @@ type WebviewWindowOptions struct {
 	// `data-file-drop-target` attribute will trigger a FilesDropped event.
 	EnableFileDrop bool
 
+	// EnableFileDragOut enables dragging files out of the window to other
+	// applications (Finder, DAWs, etc.) as a native file drag.
+	//
+	// Because macOS/Windows require a drag session to start from within a real
+	// mouse event, the frontend must arm the drag with the file paths before
+	// the user begins dragging, via Window.ArmFileDragOut(paths, imagePath).
+	//
+	// Currently implemented on macOS. On other platforms the arm/disarm calls
+	// are no-ops.
+	EnableFileDragOut bool
+
 	// OpenInspectorOnStartup will open the inspector when the window is first shown.
 	OpenInspectorOnStartup bool
 

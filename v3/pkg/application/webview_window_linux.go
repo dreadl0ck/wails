@@ -410,6 +410,14 @@ func (w *linuxWebviewWindow) nativeWindow() unsafe.Pointer {
 	return unsafe.Pointer(w.window)
 }
 
+func (w *linuxWebviewWindow) armFileDragOut(paths []string, imagePath string) {
+	// Not yet implemented on Linux.
+}
+
+func (w *linuxWebviewWindow) disarmFileDragOut() {
+	// Not yet implemented on Linux.
+}
+
 func (w *linuxWebviewWindow) attachModal(modalWindow *WebviewWindow) {
 	// Modal windows are not supported on Linux
 }

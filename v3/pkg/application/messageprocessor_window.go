@@ -59,6 +59,8 @@ const (
 	WindowSnapAssist                 = 49
 	WindowFilesDropped               = 50
 	WindowPrint                      = 51
+	WindowArmFileDragOut             = 52
+	WindowDisarmFileDragOut          = 53
 )
 
 var windowMethodNames = map[int]string{
@@ -114,6 +116,8 @@ var windowMethodNames = map[int]string{
 	WindowFilesDropped:               "FilesDropped",
 	WindowSnapAssist:                 "SnapAssist",
 	WindowPrint:                      "Print",
+	WindowArmFileDragOut:             "ArmFileDragOut",
+	WindowDisarmFileDragOut:          "DisarmFileDragOut",
 }
 
 var unit = struct{}{}
@@ -394,6 +398,19 @@ func (m *MessageProcessor) processWindowMethod(
 			return nil, fmt.Errorf("Window.Print failed: %w", err)
 		}
 		return unit, nil
+	case WindowArmFileDragOut:
+		var payload fileDragOutPayload
+		if err := req.Args.ToStruct(&payload); err != nil {
+			return nil, errs.WrapInvalidWindowCallErrorf(err, "error decoding file drag-out payload")
+		}
+		if len(payload.Paths) == 0 {
+			return nil, errs.NewInvalidWindowCallErrorf("missing or empty argument 'paths'")
+		}
+		window.ArmFileDragOut(payload.Paths, payload.ImagePath)
+		return unit, nil
+	case WindowDisarmFileDragOut:
+		window.DisarmFileDragOut()
+		return unit, nil
 	default:
 		return nil, errs.NewInvalidWindowCallErrorf("Unknown method %d", req.Method)
 	}
@@ -412,4 +429,10 @@ type fileDropPayload struct {
 	X              int                   `json:"x"`
 	Y              int                   `json:"y"`
 	ElementDetails ElementDetailsPayload `json:"elementDetails"`
+}
+
+// fileDragOutPayload is the JSON payload for Window.ArmFileDragOut.
+type fileDragOutPayload struct {
+	Paths     []string `json:"paths"`
+	ImagePath string   `json:"imagePath"`
 }

@@ -90,6 +90,8 @@ type Window interface {
 	SetEnabled(enabled bool)
 	Flash(enabled bool)
 	Print() error
+	ArmFileDragOut(paths []string, imagePath string)
+	DisarmFileDragOut()
 	RegisterHook(eventType events.WindowEventType, callback func(event *WindowEvent)) func()
 	AttachModal(modalWindow Window)
 	shouldUnconditionallyClose() bool

@@ -296,6 +296,14 @@ func (w *androidWebviewWindow) nativeWindow() unsafe.Pointer {
 	return nil
 }
 
+func (w *androidWebviewWindow) armFileDragOut(paths []string, imagePath string) {
+	// Not supported on Android.
+}
+
+func (w *androidWebviewWindow) disarmFileDragOut() {
+	// Not supported on Android.
+}
+
 func (w *androidWebviewWindow) attachModal(modalWindow *WebviewWindow) {
 	// Modal windows are not supported on Android
 }

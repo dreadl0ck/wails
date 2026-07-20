@@ -26,7 +26,7 @@ import * as Flags from "./flags.js";
 import * as Screens from "./screens.js";
 import * as System from "./system.js";
 import * as IOS from "./ios.js";
-import Window, { handleDragEnter, handleDragLeave, handleDragOver } from "./window.js";
+import Window, { handleDragEnter, handleDragLeave, handleDragOver, handleFileDragOutEnded } from "./window.js";
 import * as WML from "./wml.js";
 
 export {
@@ -77,6 +77,9 @@ window._wails.handlePlatformFileDrop = Window.HandlePlatformFileDrop.bind(Window
 window._wails.handleDragEnter = handleDragEnter;
 window._wails.handleDragLeave = handleDragLeave;
 window._wails.handleDragOver = handleDragOver;
+
+// File drag-out end callback (invoked from native code).
+window._wails.handleFileDragOutEnded = handleFileDragOutEnded;
 
 System.invoke("wails:runtime:ready");
 

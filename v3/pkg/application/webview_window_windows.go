@@ -236,6 +236,14 @@ func (w *windowsWebviewWindow) startDrag() error {
 	return nil
 }
 
+func (w *windowsWebviewWindow) armFileDragOut(paths []string, imagePath string) {
+	// Not yet implemented on Windows.
+}
+
+func (w *windowsWebviewWindow) disarmFileDragOut() {
+	// Not yet implemented on Windows.
+}
+
 func (w *windowsWebviewWindow) attachModal(modalWindow *WebviewWindow) {
 	if modalWindow == nil || modalWindow.impl == nil || modalWindow.isDestroyed() {
 		return

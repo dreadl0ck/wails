@@ -217,6 +217,7 @@ static void startSingleInstanceListener(const char *uniqueID) {
 */
 import "C"
 import (
+	"fmt"
 	"sync"
 	"time"
 	"unsafe"
@@ -457,6 +458,21 @@ func macosOnDragExit(windowID C.uint) {
 
 	// Call JavaScript to clean up drag state
 	window.ExecJS("window._wails.handleDragLeave();")
+}
+
+//export macosOnDragOutEnded
+func macosOnDragOutEnded(windowID C.uint, performed C.bool) {
+	window, ok := globalApplication.Window.GetByID(uint(windowID))
+	if !ok || window == nil {
+		return
+	}
+
+	// Notify JS that the drag-out session ended so it can clean up state.
+	// Guarded so an older runtime bundle without the handler doesn't error.
+	window.ExecJS(fmt.Sprintf(
+		"window._wails&&window._wails.handleFileDragOutEnded&&window._wails.handleFileDragOutEnded(%v);",
+		bool(performed),
+	))
 }
 
 var (

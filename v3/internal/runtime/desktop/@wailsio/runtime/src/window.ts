@@ -68,6 +68,8 @@ const ZoomResetMethod                   = 48;
 const SnapAssistMethod                  = 49;
 const FilesDropped                      = 50;
 const PrintMethod                       = 51;
+const ArmFileDragOutMethod              = 52;
+const DisarmFileDragOutMethod           = 53;
 
 /**
  * Finds the nearest drop target element by walking up the DOM tree.
@@ -165,8 +167,21 @@ function handleDragOver(x: number, y: number): void {
 
 
 
+/**
+ * Called from Go when a native file drag-out session ends. Dispatches a
+ * `wails:file-drag-out-ended` CustomEvent on window so the frontend can clean
+ * up any drag state it set up when arming the drag.
+ *
+ * @param performed - true if the files were dropped onto an accepting target.
+ */
+function handleFileDragOutEnded(performed: boolean): void {
+    window.dispatchEvent(new CustomEvent("wails:file-drag-out-ended", {
+        detail: { performed: !!performed },
+    }));
+}
+
 // Export the handlers for use by Go via index.ts
-export { handleDragEnter, handleDragLeave, handleDragOver };
+export { handleDragEnter, handleDragLeave, handleDragOver, handleFileDragOutEnded };
 
 /**
  * A record describing the position of a window.
@@ -683,6 +698,34 @@ class Window {
      */
     Print(): Promise<void> {
         return this[callerSym](PrintMethod);
+    }
+
+    /**
+     * Arms a native file drag-out for this window.
+     *
+     * After arming, the next mouse drag over the window starts a native OS drag
+     * session carrying the given absolute file paths, so they can be dropped
+     * into other applications (Finder, DAWs such as Ableton Live / Pro Tools).
+     *
+     * This must be called in response to a `pointerdown`/`dragstart` on the
+     * element to be dragged, *before* the drag begins. Requires the window to be
+     * created with `EnableFileDragOut`. Currently implemented on macOS.
+     *
+     * @param paths - Absolute paths of the files to drag out.
+     * @param imagePath - Optional path to an image used as the drag preview
+     *   (e.g. a waveform thumbnail). Pass "" for the default file icon.
+     */
+    ArmFileDragOut(paths: string[], imagePath: string = ""): Promise<void> {
+        return this[callerSym](ArmFileDragOutMethod, { paths, imagePath });
+    }
+
+    /**
+     * Cancels a previously armed file drag-out so that normal pointer
+     * interaction with the webview resumes. Called automatically when a drag
+     * ends, but can also be called explicitly to abort.
+     */
+    DisarmFileDragOut(): Promise<void> {
+        return this[callerSym](DisarmFileDragOutMethod);
     }
 }
 

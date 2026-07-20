@@ -330,6 +330,14 @@ func (w *iosWebviewWindow) nativeWindow() unsafe.Pointer {
 	return w.nativeHandle
 }
 
+func (w *iosWebviewWindow) armFileDragOut(paths []string, imagePath string) {
+	// Not supported on iOS.
+}
+
+func (w *iosWebviewWindow) disarmFileDragOut() {
+	// Not supported on iOS.
+}
+
 func (w *iosWebviewWindow) attachModal(modalWindow *WebviewWindow) {
 	// Modal windows are not supported on iOS
 }
