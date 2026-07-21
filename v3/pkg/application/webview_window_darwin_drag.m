@@ -2,7 +2,9 @@
 
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
+#import <WebKit/WebKit.h>
 #import "webview_window_darwin_drag.h"
+#import "webview_window_darwin.h" // for WebviewWindow (webView property)
 
 #import "../events/events_darwin.h"
 
@@ -86,17 +88,25 @@ extern void macosOnDragOver(unsigned int windowId, int x, int y);
             cArray[i] = (char*)[str UTF8String];
         }
         
+        // SAMPLEVAULT PATCH: convert the drop point against the WKWebView's
+        // own frame (like webview_window_darwin.m's performDragOperation),
+        // not the window contentView. When the window uses an inset/hidden
+        // title bar the contentView is taller than the webview, so using the
+        // contentView height produced a y-coordinate that could fall outside
+        // the webview and make elementFromPoint() miss the drop target.
         NSPoint dropPointInWindow = [sender draggingLocation];
-        NSPoint dropPointInView = [self convertPoint:dropPointInWindow fromView:nil];
-        
-        // Get the window's content view height
-        NSView *contentView = [self.window contentView];
-        CGFloat contentHeight = contentView.frame.size.height;
-        
+        WebviewWindow *wvWindow = (WebviewWindow *)[sender draggingDestinationWindow];
+        WKWebView *webView = [wvWindow isKindOfClass:[WebviewWindow class]] ? wvWindow.webView : nil;
+        NSView *refView = webView != nil ? (NSView *)webView : self;
+        NSPoint dropPointInView = [refView convertPoint:dropPointInWindow fromView:nil];
+        CGFloat viewHeight = refView.frame.size.height;
+
         int x = (int)dropPointInView.x;
-        // Use the content view height for conversion
-        int y = (int)(contentHeight - dropPointInView.y);
-        
+        int y = (int)(viewHeight - dropPointInView.y); // flip Y for web coords
+
+        NSLog(@"[filedrop] performDragOperation windowId=%u count=%lu x=%d y=%d",
+              self.windowId, (unsigned long)count, x, y);
+
         processDragItems(self.windowId, cArray, (int)count, x, y);
         free(cArray);
         return YES;

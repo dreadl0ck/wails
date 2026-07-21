@@ -654,12 +654,39 @@ class Window {
         if ((window as any)._wails?.flags?.enableFileDrop === false) {
             return; // File drops disabled, ignore the drop
         }
-        
+
         const element = document.elementFromPoint(x, y);
-        const dropTarget = getDropTargetElement(element);
+        let dropTarget = getDropTargetElement(element);
+
+        // SAMPLEVAULT PATCH: coordinate-independent fallback.
+        //
+        // On macOS, dropping *multiple* items from Finder reports a
+        // draggingLocation offset by the multi-item drag badge, and the
+        // native<->CSS coordinate conversion can land x/y just outside the
+        // webview. In that case elementFromPoint() returns null and the drop
+        // used to be silently discarded (the classic "drag multiple folders,
+        // nothing happens, no logs" bug). Since apps typically mark a single
+        // top-level drop zone, fall back to the first [data-file-drop-target]
+        // in the document so an in-window drop still succeeds regardless of
+        // the exact coordinates.
+        if (!dropTarget) {
+            dropTarget = document.querySelector(`[${DROP_TARGET_ATTRIBUTE}]`);
+        }
+
+        // eslint-disable-next-line no-console
+        console.debug("[filedrop] HandlePlatformFileDrop", {
+            count: filenames?.length ?? 0,
+            x,
+            y,
+            hitElement: element?.tagName ?? null,
+            targetFound: !!dropTarget,
+            usedFallback: !!dropTarget && !getDropTargetElement(element),
+        });
 
         if (!dropTarget) {
-            // Drop was not on a designated drop target - ignore
+            // No drop target anywhere in the document - ignore.
+            // eslint-disable-next-line no-console
+            console.debug("[filedrop] no drop target found; ignoring drop", filenames);
             return;
         }
 
