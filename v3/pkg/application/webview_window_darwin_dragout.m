@@ -33,6 +33,41 @@ extern void macosOnDragOutEnded(unsigned int windowId, bool performed);
     _armed = (files != nil && [files count] > 0);
     [oldFiles release];
     [oldImage release];
+
+    // If the left mouse button is already down when we arm (the common
+    // case: the frontend arms from a pointermove during the very gesture
+    // that should become the drag), start the drag session immediately
+    // rather than waiting for a *subsequent* mouseDown. Waiting is what
+    // made drag-out only work on the second gesture. beginDraggingSession
+    // needs a mouse event; reuse the app's current event when it is a
+    // mouse event, otherwise the armed mouseDown: path below still works.
+    if (_armed && ([NSEvent pressedMouseButtons] & 1) != 0) {
+        [self startDragFromCurrentEvent];
+    }
+}
+
+// startDragFromCurrentEvent begins an NSDraggingSession using the app's
+// current mouse event, centred at the current pointer location. No-op if
+// there is no usable mouse event (the overlay then falls back to arming
+// and starting on the next mouseDown:). Must run on the main thread.
+- (void)startDragFromCurrentEvent {
+    if (!_armed || _files == nil || [_files count] == 0) {
+        return;
+    }
+    NSEvent *cur = [NSApp currentEvent];
+    if (cur == nil) {
+        return;
+    }
+    NSEventType t = [cur type];
+    if (t != NSEventTypeLeftMouseDragged && t != NSEventTypeLeftMouseDown) {
+        return;
+    }
+    NSPoint mouseInView = [self convertPoint:[cur locationInWindow] fromView:nil];
+    NSArray<NSDraggingItem *> *dragItems = [self buildDragItemsAtPoint:mouseInView];
+    if ([dragItems count] == 0) {
+        return;
+    }
+    [self beginDraggingSessionWithItems:dragItems event:cur source:self];
 }
 
 - (void)disarm {
@@ -54,16 +89,89 @@ extern void macosOnDragOutEnded(unsigned int windowId, bool performed);
     return [super hitTest:point];
 }
 
+// imageByAddingLabel composites a filename label into a rounded dark pill
+// beneath the given (waveform / icon) image, returning a new image sized
+// to fit both. This makes the drag preview show the sample's name as well
+// as its waveform. Falls back to the original image when label is empty.
+- (NSImage *)imageByAddingLabel:(NSString *)label toImage:(NSImage *)base {
+    if (label == nil || [label length] == 0) {
+        return base;
+    }
+
+    NSFont *font = [NSFont systemFontOfSize:11 weight:NSFontWeightMedium];
+    NSMutableParagraphStyle *para = [[[NSMutableParagraphStyle alloc] init] autorelease];
+    para.lineBreakMode = NSLineBreakByTruncatingMiddle;
+    para.alignment = NSTextAlignmentCenter;
+    NSDictionary *attrs = @{
+        NSFontAttributeName: font,
+        NSForegroundColorAttributeName: [NSColor colorWithSRGBRed:0.93 green:0.94 blue:0.96 alpha:1.0],
+        NSParagraphStyleAttributeName: para,
+    };
+
+    NSSize baseSize = base.size;
+    if (baseSize.width <= 0 || baseSize.height <= 0) {
+        baseSize = NSMakeSize(64, 64);
+    }
+
+    const CGFloat padX = 8.0;   // pill horizontal padding
+    const CGFloat padY = 3.0;   // pill vertical padding
+    const CGFloat gap = 4.0;    // gap between waveform and pill
+    const CGFloat maxLabelW = 220.0;
+
+    NSSize textSize = [label sizeWithAttributes:attrs];
+    CGFloat labelW = textSize.width;
+    if (labelW > maxLabelW) {
+        labelW = maxLabelW;
+    }
+    CGFloat pillW = labelW + padX * 2.0;
+    CGFloat pillH = textSize.height + padY * 2.0;
+
+    CGFloat outW = MAX(baseSize.width, pillW);
+    CGFloat outH = baseSize.height + gap + pillH;
+
+    NSImage *out = [[[NSImage alloc] initWithSize:NSMakeSize(outW, outH)] autorelease];
+    [out lockFocus];
+
+    // Draw the base image centred along the top.
+    NSRect baseRect = NSMakeRect((outW - baseSize.width) / 2.0, pillH + gap, baseSize.width, baseSize.height);
+    [base drawInRect:baseRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
+
+    // Draw the rounded pill background.
+    NSRect pillRect = NSMakeRect((outW - pillW) / 2.0, 0, pillW, pillH);
+    NSBezierPath *pill = [NSBezierPath bezierPathWithRoundedRect:pillRect xRadius:pillH / 2.0 yRadius:pillH / 2.0];
+    [[NSColor colorWithSRGBRed:0.09 green:0.09 blue:0.11 alpha:0.94] setFill];
+    [pill fill];
+
+    // Draw the label text, clipped to the pill's inner width.
+    NSRect textRect = NSMakeRect(pillRect.origin.x + padX, padY, pillW - padX * 2.0, textSize.height);
+    [label drawInRect:textRect withAttributes:attrs];
+
+    [out unlockFocus];
+    return out;
+}
+
 // buildDragItems builds the NSDraggingItems for the currently armed files,
 // centred on the given point (in this view's coordinates).
 - (NSArray<NSDraggingItem *> *)buildDragItemsAtPoint:(NSPoint)mouseInView {
     NSMutableArray<NSDraggingItem *> *dragItems = [NSMutableArray arrayWithCapacity:[_files count]];
 
-    NSImage *image = _dragImage;
-    if (image == nil) {
+    NSImage *base = _dragImage;
+    if (base == nil) {
         // Fall back to the generic document icon.
-        image = [[NSWorkspace sharedWorkspace] iconForFileType:NSFileTypeForHFSTypeCode(kGenericDocumentIcon)];
+        base = [[NSWorkspace sharedWorkspace] iconForFileType:NSFileTypeForHFSTypeCode(kGenericDocumentIcon)];
     }
+
+    // Build the drag label: the first file's name, plus a "+N" suffix
+    // when dragging multiple files so the count is legible.
+    NSString *label = [[_files firstObject] lastPathComponent];
+    if (label == nil) {
+        label = @"";
+    }
+    if ([_files count] > 1) {
+        label = [label stringByAppendingFormat:@"  +%lu", (unsigned long)([_files count] - 1)];
+    }
+
+    NSImage *image = [self imageByAddingLabel:label toImage:base];
     NSSize imageSize = image.size;
     if (imageSize.width <= 0 || imageSize.height <= 0) {
         imageSize = NSMakeSize(64, 64);
