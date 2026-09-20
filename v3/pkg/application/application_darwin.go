@@ -445,8 +445,10 @@ func macosOnDragEnter(windowID C.uint) {
 		return
 	}
 
-	// Call JavaScript to show drag entered state
-	window.ExecJS("window._wails.handleDragEnter();")
+	// The npm runtime may be older than this local fork, or a native drag
+	// may arrive before runtime initialisation. Guard the optional bridge
+	// handler so either case is a harmless no-op instead of a JS exception.
+	window.ExecJS("window._wails&&window._wails.handleDragEnter&&window._wails.handleDragEnter();")
 }
 
 //export macosOnDragExit
@@ -456,8 +458,8 @@ func macosOnDragExit(windowID C.uint) {
 		return
 	}
 
-	// Call JavaScript to clean up drag state
-	window.ExecJS("window._wails.handleDragLeave();")
+	// See macosOnDragEnter: tolerate a missing/newer runtime handler.
+	window.ExecJS("window._wails&&window._wails.handleDragLeave&&window._wails.handleDragLeave();")
 }
 
 //export macosOnDragOutEnded
@@ -479,7 +481,7 @@ var (
 	// Pre-allocated buffer for drag JS calls to avoid allocations
 	dragOverJSBuffer = make([]byte, 128) // Increased for safety
 	dragOverJSMutex  sync.Mutex          // Protects dragOverJSBuffer
-	dragOverJSPrefix = []byte("window._wails.handleDragOver(")
+	dragOverJSPrefix = []byte("window._wails&&window._wails.handleDragOver&&window._wails.handleDragOver(")
 
 	// Cache window references to avoid repeated lookups
 	windowImplCache sync.Map // windowID -> *macosWebviewWindow
@@ -675,8 +677,8 @@ func sendDragUpdate(winID uint, x, y int) {
 	dragOverJSMutex.Lock()
 
 	// Build JS string with zero allocations
-	// Format: "window._wails.handleDragOver(X,Y)"
-	// Max length with int32 coords: 30 + 11 + 1 + 11 + 1 + 1 = 55 bytes
+	// Format: guarded optional call ending in handleDragOver(X,Y).
+	// The 128-byte buffer leaves ample room for int32 coordinates.
 	n := copy(dragOverJSBuffer[:], dragOverJSPrefix)
 	n += writeInt(dragOverJSBuffer[n:], x)
 	if n < len(dragOverJSBuffer) {

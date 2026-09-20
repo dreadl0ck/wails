@@ -658,7 +658,7 @@ class Window {
         const element = document.elementFromPoint(x, y);
         let dropTarget = getDropTargetElement(element);
 
-        // SAMPLEVAULT PATCH: coordinate-independent fallback.
+        // AUDIOVAULT PATCH: coordinate-independent fallback.
         //
         // On macOS, dropping *multiple* items from Finder reports a
         // draggingLocation offset by the multi-item drag badge, and the

@@ -1,8 +1,8 @@
-# SampleVault-local patches to this Wails fork
+# AudioVault-local patches to this Wails fork
 
-This fork (branch `feat/macos-file-dragout`) carries SampleVault-specific
+This fork (branch `feat/macos-file-dragout`) carries AudioVault-specific
 patches on top of upstream Wails v3. All are marked in-code with a
-`SAMPLEVAULT PATCH` comment. Full rationale lives in the app repo at
+`AUDIOVAULT PATCH` comment. Full rationale lives in the app repo at
 `docs/DRAG_IN.md` and `docs/DRAG_OUT.md`.
 
 ## Drag-OUT (NSDraggingSource)

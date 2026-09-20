@@ -88,7 +88,7 @@ extern void macosOnDragOver(unsigned int windowId, int x, int y);
             cArray[i] = (char*)[str UTF8String];
         }
         
-        // SAMPLEVAULT PATCH: convert the drop point against the WKWebView's
+        // AUDIOVAULT PATCH: convert the drop point against the WKWebView's
         // own frame (like webview_window_darwin.m's performDragOperation),
         // not the window contentView. When the window uses an inset/hidden
         // title bar the contentView is taller than the webview, so using the

@@ -1083,17 +1083,17 @@ func (w *linuxWebviewWindow) execJS(js string) {
 }
 
 // Preallocated buffer for drag-over JS calls to avoid allocations
-// "window._wails.handleDragOver(XXXXX,YYYYY)" is max ~45 chars
-var dragOverJSBuffer = C.CString(strings.Repeat(" ", 64))
+// Guarded optional call plus coordinates fits comfortably in 128 bytes.
+var dragOverJSBuffer = C.CString(strings.Repeat(" ", 128))
 var emptyWorldName = C.CString("")
 
 // execJSDragOver executes JS for drag-over events with zero Go allocations.
 // It directly writes to a preallocated C buffer. Must be called from main thread.
 func (w *linuxWebviewWindow) execJSDragOver(x, y int) {
-	// Format: "window._wails.handleDragOver(X,Y)"
+	// Format: guarded optional call ending in handleDragOver(X,Y).
 	// Write directly to C buffer
-	buf := (*[64]byte)(unsafe.Pointer(dragOverJSBuffer))
-	n := copy(buf[:], "window._wails.handleDragOver(")
+	buf := (*[128]byte)(unsafe.Pointer(dragOverJSBuffer))
+	n := copy(buf[:], "window._wails&&window._wails.handleDragOver&&window._wails.handleDragOver(")
 	n += writeInt(buf[n:], x)
 	buf[n] = ','
 	n++

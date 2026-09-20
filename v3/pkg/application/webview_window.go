@@ -1320,12 +1320,12 @@ func (w *WebviewWindow) AttachModal(modalWindow Window) {
 	if w.impl == nil || w.isDestroyed() {
 		return
 	}
-	
+
 	modalWebviewWindow, ok := modalWindow.(*WebviewWindow)
 	if !ok || modalWebviewWindow == nil {
 		return
 	}
-	
+
 	InvokeSync(func() {
 		w.impl.attachModal(modalWebviewWindow)
 	})
@@ -1575,7 +1575,7 @@ func (w *WebviewWindow) HandleDragEnter() {
 	dragHover.lastSentX = 0
 	dragHover.lastSentY = 0
 
-	w.impl.execJS("window._wails.handleDragEnter();")
+	w.impl.execJS("window._wails&&window._wails.handleDragEnter&&window._wails.handleDragEnter();")
 }
 
 // Drag hover throttle state
@@ -1610,7 +1610,7 @@ func (w *WebviewWindow) HandleDragOver(x int, y int) {
 	if impl, ok := w.impl.(interface{ execJSDragOver(x, y int) }); ok {
 		impl.execJSDragOver(x, y)
 	} else {
-		w.impl.execJS(fmt.Sprintf("window._wails.handleDragOver(%d,%d)", x, y))
+		w.impl.execJS(fmt.Sprintf("window._wails&&window._wails.handleDragOver&&window._wails.handleDragOver(%d,%d)", x, y))
 	}
 }
 
@@ -1621,7 +1621,7 @@ func (w *WebviewWindow) HandleDragLeave() {
 	}
 
 	// Don't use InvokeSync - execJS already handles main thread dispatch internally
-	w.impl.execJS("window._wails.handleDragLeave();")
+	w.impl.execJS("window._wails&&window._wails.handleDragLeave&&window._wails.handleDragLeave();")
 }
 
 // SnapAssist triggers the Windows Snap Assist feature by simulating Win+Z key combination.
