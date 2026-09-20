@@ -1468,6 +1468,24 @@ func (w *macosWebviewWindow) run() {
 		}
 
 		w.setURL(startURL)
+		if !options.Hidden {
+			w.parent.Show()
+			w.setHasShadow(!options.Mac.DisableShadow)
+			w.setAlwaysOnTop(options.AlwaysOnTop)
+		} else {
+			// We have to wait until the window is shown before we can remove the shadow.
+			var cancel func()
+			cancel = w.parent.OnWindowEvent(events.Mac.WindowDidBecomeKey, func(_ *WindowEvent) {
+				InvokeAsync(func() {
+					if !w.isVisible() {
+						w.parent.Show()
+					}
+					w.setHasShadow(!options.Mac.DisableShadow)
+					w.setAlwaysOnTop(options.AlwaysOnTop)
+					cancel()
+				})
+			})
+		}
 
 		// We need to wait for the HTML to load before we can execute the javascript
 		w.parent.OnWindowEvent(events.Mac.WebViewDidFinishNavigation, func(_ *WindowEvent) {
@@ -1477,24 +1495,6 @@ func (w *macosWebviewWindow) run() {
 				}
 				if options.CSS != "" {
 					C.windowInjectCSS(w.nsWindow, C.CString(options.CSS))
-				}
-				if !options.Hidden {
-					w.parent.Show()
-					w.setHasShadow(!options.Mac.DisableShadow)
-					w.setAlwaysOnTop(options.AlwaysOnTop)
-				} else {
-					// We have to wait until the window is shown before we can remove the shadow
-					var cancel func()
-					cancel = w.parent.OnWindowEvent(events.Mac.WindowDidBecomeKey, func(_ *WindowEvent) {
-						InvokeAsync(func() {
-							if !w.isVisible() {
-								w.parent.Show()
-							}
-							w.setHasShadow(!options.Mac.DisableShadow)
-							w.setAlwaysOnTop(options.AlwaysOnTop)
-							cancel()
-						})
-					})
 				}
 			})
 		})
