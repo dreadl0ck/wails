@@ -5,6 +5,7 @@ package application
 import (
 	"encoding/binary"
 	"fmt"
+	"runtime"
 	"sync"
 	"syscall"
 	"unicode/utf16"
@@ -14,11 +15,14 @@ import (
 )
 
 var (
-	fileDragOutWindows   sync.Map
-	fileDragOutShell     = syscall.NewLazyDLL("shell32.dll")
-	createDragDataObject = fileDragOutShell.NewProc("SHCreateDataObject")
-	shellDoDragDrop      = fileDragOutShell.NewProc("SHDoDragDrop")
-	fileDragOutTimer     = syscall.NewCallback(func(hwnd uintptr, _ uint32, _ uintptr, _ uint32) uintptr {
+	fileDragOutWindows      sync.Map
+	fileDragOutShell        = syscall.NewLazyDLL("shell32.dll")
+	createDragDataObject    = fileDragOutShell.NewProc("SHCreateDataObject")
+	shellDoDragDrop         = fileDragOutShell.NewProc("SHDoDragDrop")
+	fileDragOutOLE          = syscall.NewLazyDLL("ole32.dll")
+	initializeFileDragOLE   = fileDragOutOLE.NewProc("OleInitialize")
+	uninitializeFileDragOLE = fileDragOutOLE.NewProc("OleUninitialize")
+	fileDragOutTimer        = syscall.NewCallback(func(hwnd uintptr, _ uint32, _ uintptr, _ uint32) uintptr {
 		if value, ok := fileDragOutWindows.Load(hwnd); ok {
 			value.(*windowsWebviewWindow).pollFileDragOut()
 		}
@@ -169,13 +173,20 @@ func newWindowsFileDragData(paths []string) (*w32.IDataObject, error) {
 }
 
 func dragWindowsFiles(hwnd w32.HWND, paths []string) (bool, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	hr, _, _ := initializeFileDragOLE.Call(0)
+	if int32(hr) < 0 {
+		return false, fmt.Errorf("OleInitialize: HRESULT %#x", uint32(hr))
+	}
+	defer uninitializeFileDragOLE.Call()
 	object, err := newWindowsFileDragData(paths)
 	if err != nil {
 		return false, err
 	}
 	defer object.Vtbl.Release.Call(uintptr(unsafe.Pointer(object)))
 	var effect uint32
-	hr, _, _ := shellDoDragDrop.Call(uintptr(hwnd), uintptr(unsafe.Pointer(object)), 0, 1, uintptr(unsafe.Pointer(&effect)))
+	hr, _, _ = shellDoDragDrop.Call(uintptr(hwnd), uintptr(unsafe.Pointer(object)), 0, 1, uintptr(unsafe.Pointer(&effect)))
 	if int32(hr) < 0 {
 		return false, fmt.Errorf("SHDoDragDrop: HRESULT %#x", uint32(hr))
 	}
