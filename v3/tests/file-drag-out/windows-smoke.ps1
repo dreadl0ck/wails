@@ -48,7 +48,13 @@ $files | ForEach-Object { [IO.File]::WriteAllText($_, 'native file drag fixture'
 $output = Join-Path $root 'received.json'
 $stdout = Join-Path $root 'source.log'
 $stderr = Join-Path $root 'source.err'
-function Read-SourceLog { return (([IO.File]::ReadAllText($stdout)) + ([IO.File]::ReadAllText($stderr))) }
+function Read-SharedFile([string]$Path) {
+    if (!(Test-Path -LiteralPath $Path)) { return '' }
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    $reader = [IO.StreamReader]::new($stream)
+    try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
+}
+function Read-SourceLog { return ((Read-SharedFile $stdout) + (Read-SharedFile $stderr)) }
 
 $target = $null
 $source = $null
@@ -57,7 +63,7 @@ try {
     $arguments = $files | ForEach-Object { "`"$_`"" }
     $source = Start-Process (Resolve-Path $Binary) -PassThru -ArgumentList $arguments -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     $src = Wait-For { $match = [regex]::Match((Read-SourceLog), 'file-drag-out native: (\d+)'); if ($match.Success) { [IntPtr]::new([long]$match.Groups[1].Value) } } 'source window'
-    $dst = Wait-For { if (Test-Path ($output + '.hwnd')) { [IntPtr]::new([long][IO.File]::ReadAllText($output + '.hwnd')) } } 'receiver window'
+    $dst = Wait-For { $text = Read-SharedFile ($output + '.hwnd'); if ($text -match '^\d+$') { [IntPtr]::new([long]$text) } } 'receiver window'
     Wait-For { (Read-SourceLog).Contains('file-drag-out ready') } 'frontend runtime' | Out-Null
     [DragInput]::SetWindowPos($src, [IntPtr]::Zero, 30, 30, 300, 220, 0x40) | Out-Null
     [DragInput]::SetWindowPos($dst, [IntPtr]::Zero, 450, 30, 300, 220, 0x40) | Out-Null

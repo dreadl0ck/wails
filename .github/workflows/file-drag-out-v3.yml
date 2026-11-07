@@ -15,6 +15,7 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -24,6 +25,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: v3/go.mod
+          cache-dependency-path: v3/go.sum
       - name: Install native libraries
         run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev xvfb xauth xdotool dbus-x11 python3-gi gir1.2-gtk-3.0
       - name: Test and build
@@ -39,11 +41,13 @@ jobs:
         run: xvfb-run -a dbus-run-session -- python3 tests/file-drag-out/linux-smoke.py "$RUNNER_TEMP/file-drag-out"
   windows:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: v3/go.mod
+          cache-dependency-path: v3/go.sum
       - name: Native data-object tests
         working-directory: v3
         run: go test ./pkg/application -run '^TestFileDragOut' -count=1
