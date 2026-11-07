@@ -11,6 +11,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/wailsapp/wails/v3/internal/webview2/pkg/edge"
 	"github.com/wailsapp/wails/v3/pkg/w32"
 )
 
@@ -22,7 +23,20 @@ var (
 	fileDragOutOLE          = syscall.NewLazyDLL("ole32.dll")
 	initializeFileDragOLE   = fileDragOutOLE.NewProc("OleInitialize")
 	uninitializeFileDragOLE = fileDragOutOLE.NewProc("OleUninitialize")
-	fileDragOutTimer        = syscall.NewCallback(func(hwnd uintptr, _ uint32, _ uintptr, _ uint32) uintptr {
+	fileDragOutChildren     = syscall.NewLazyDLL("user32.dll").NewProc("EnumChildWindows")
+	fileDragOutMouseUp      = syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
+		child := w32.HWND(hwnd)
+		if w32.GetClassName(child) != "Chrome_RenderWidgetHostHWND" {
+			return 1
+		}
+		x, y, _ := w32.GetCursorPos()
+		x, y, _ = w32.ScreenToClient(child, x, y)
+		point := uintptr(uint16(x)) | uintptr(uint16(y))<<16
+		w32.PostMessage(child, w32.WM_CANCELMODE, 0, 0)
+		w32.PostMessage(child, w32.WM_LBUTTONUP, 0, point)
+		return 0
+	})
+	fileDragOutTimer = syscall.NewCallback(func(hwnd uintptr, _ uint32, _ uintptr, _ uint32) uintptr {
 		if value, ok := fileDragOutWindows.Load(hwnd); ok {
 			value.(*windowsWebviewWindow).pollFileDragOut()
 		}
@@ -39,10 +53,6 @@ func (w *windowsWebviewWindow) armFileDragOut(paths []string, imagePath string) 
 		}
 		w.clearFileDragOut()
 		w.fileDragOut = &fileDragOutState{paths: paths, imagePath: imagePath}
-		if w32.GetAsyncKeyState(w32.VK_LBUTTON)&0x8000 != 0 {
-			w.beginFileDragOut()
-			return
-		}
 		fileDragOutWindows.Store(uintptr(w.hwnd), w)
 		w.fileDragOut.timer = w32.SetTimer(w.hwnd, fileDragOutTimerID, 16, fileDragOutTimer)
 	})
@@ -104,10 +114,27 @@ func (w *windowsWebviewWindow) beginFileDragOut() {
 	w32.ReleaseCapture()
 	performed, err := dragWindowsFiles(w.hwnd, s.paths)
 	w.fileDragOut = nil
+	w.releaseFileDragMouse()
 	if err != nil {
 		globalApplication.error("File drag-out failed: %v", err)
 	}
 	w.parent.fileDragOutEnded(performed)
+}
+
+// OLE consumes mouse-up. Clear WebView2's pressed state before the next gesture.
+func (w *windowsWebviewWindow) releaseFileDragMouse() {
+	if w.parent.isDestroyed() || w.chromium == nil {
+		return
+	}
+	if w.chromium.CompositionControllerReady() {
+		x, y, _ := w32.GetCursorPos()
+		x, y, _ = w32.ScreenToClient(w.hwnd, x, y)
+		if err := w.chromium.SendMouseInput(edge.COREWEBVIEW2_MOUSE_EVENT_KIND_LEFT_BUTTON_UP, 0, 0, x, y); err != nil {
+			globalApplication.error("Reset file drag mouse state: %v", err)
+		}
+		return
+	}
+	fileDragOutChildren.Call(uintptr(w.hwnd), fileDragOutMouseUp, 0)
 }
 
 // DROPFILES has a fixed 20-byte header on both 32- and 64-bit Windows.

@@ -60,6 +60,7 @@ Events.On('file-drag-out:armed', () => Events.Emit('file-drag-out:trace', 'armed
 Events.On('file-drag-out:error', event => { document.querySelector('#files').textContent = String(event.data); armed = false; });
 Events.On('file-drag-out:files', event => { count = event.data; document.querySelector('#files').textContent = 'Drag ' + count + ' files out'; arm(); });
 document.addEventListener('pointermove', event => { if (!(event.buttons & 1)) arm(); });
+document.addEventListener('pointerup', arm);
 document.addEventListener('click', () => Events.Emit('file-drag-out:trace', 'click'));
 window.addEventListener('wails:file-drag-out-ended', event => { armed = false; Events.Emit('file-drag-out:ended', event.detail); });
 Events.Emit('file-drag-out:ready');
