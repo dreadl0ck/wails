@@ -14,13 +14,9 @@ import Window, { handleFileDragOutEnded } from './window';
 afterEach(() => { vi.unstubAllGlobals(); call.mockClear(); });
 
 describe('native file drag-out', () => {
-    it('passes files and an optional preview to the native window', async () => {
-        await Window.ArmFileDragOut(['/tmp/kick.wav', '/tmp/snare.wav']);
-        expect(call).toHaveBeenCalledWith(53, {
-            paths: ['/tmp/kick.wav', '/tmp/snare.wav'], imagePath: '',
-        });
-        await Window.DisarmFileDragOut();
-        expect(call).toHaveBeenLastCalledWith(54);
+    it('does not let a page arm arbitrary native file paths', () => {
+        expect(Window.ArmFileDragOut).toBeUndefined();
+        expect(Window.DisarmFileDragOut).toBeUndefined();
     });
 
     it.each([true, false])('reports completion and cancellation: %s', performed => {

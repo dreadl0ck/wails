@@ -7,6 +7,7 @@ if ($Receiver) {
     $form.Text = 'Wails file drag receiver'
     $form.Size = New-Object System.Drawing.Size(300, 220)
     $form.AllowDrop = $true
+    $form.add_Shown({ [IO.File]::WriteAllText($Receiver + '.hwnd', $form.Handle.ToInt64().ToString()) })
     $form.add_DragEnter({ if ($_.Data.GetDataPresent([Windows.Forms.DataFormats]::FileDrop)) { $_.Effect = [Windows.Forms.DragDropEffects]::Copy } })
     $form.add_DragDrop({
         $files = [string[]]$_.Data.GetData([Windows.Forms.DataFormats]::FileDrop)
@@ -21,7 +22,7 @@ Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class DragInput {
-    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string title);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
@@ -52,17 +53,18 @@ function Read-SourceLog { return (([IO.File]::ReadAllText($stdout)) + ([IO.File]
 $target = $null
 $source = $null
 try {
-    $target = Start-Process pwsh -PassThru -ArgumentList @('-NoProfile', '-File', "`"$PSCommandPath`"", '-Receiver', "`"$output`"")
+    $target = Start-Process pwsh -PassThru -ArgumentList @('-STA', '-NoProfile', '-File', "`"$PSCommandPath`"", '-Receiver', "`"$output`"") -RedirectStandardError (Join-Path $root 'receiver.err')
     $arguments = $files | ForEach-Object { "`"$_`"" }
     $source = Start-Process (Resolve-Path $Binary) -PassThru -ArgumentList $arguments -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-    $src = Wait-For { $h = [DragInput]::FindWindow($null, 'Wails file drag source'); if ($h -ne [IntPtr]::Zero) { $h } } 'source window'
-    $dst = Wait-For { $h = [DragInput]::FindWindow($null, 'Wails file drag receiver'); if ($h -ne [IntPtr]::Zero) { $h } } 'receiver window'
+    $src = Wait-For { $match = [regex]::Match((Read-SourceLog), 'file-drag-out native: (\d+)'); if ($match.Success) { [IntPtr]::new([long]$match.Groups[1].Value) } } 'source window'
+    $dst = Wait-For { if (Test-Path ($output + '.hwnd')) { [IntPtr]::new([long][IO.File]::ReadAllText($output + '.hwnd')) } } 'receiver window'
     Wait-For { (Read-SourceLog).Contains('file-drag-out ready') } 'frontend runtime' | Out-Null
     [DragInput]::SetWindowPos($src, [IntPtr]::Zero, 30, 30, 300, 220, 0x40) | Out-Null
     [DragInput]::SetWindowPos($dst, [IntPtr]::Zero, 450, 30, 300, 220, 0x40) | Out-Null
     function Invoke-Drag([bool]$Cancel) {
         $starts = [regex]::Matches((Read-SourceLog), 'Starting native file drag-out').Count
         [DragInput]::SetForegroundWindow($src) | Out-Null
+        Wait-For { [DragInput]::GetForegroundWindow() -eq $src } 'source focus' | Out-Null
         [DragInput]::SetCursorPos(350, 300) | Out-Null
         [DragInput]::SetCursorPos(150, 150) | Out-Null
         Wait-For { [regex]::Matches((Read-SourceLog), 'file-drag-out trace: armed').Count -gt [regex]::Matches((Read-SourceLog), 'file-drag-out ended:').Count } 'armed source' | Out-Null
@@ -95,6 +97,7 @@ try {
 } catch {
     if (Test-Path $stdout) { Get-Content $stdout }
     if (Test-Path $stderr) { Get-Content $stderr }
+    if (Test-Path (Join-Path $root 'receiver.err')) { Get-Content (Join-Path $root 'receiver.err') }
     throw
 } finally {
     [DragInput]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)

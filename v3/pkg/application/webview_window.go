@@ -707,11 +707,11 @@ func (w *WebviewWindow) SetMaxSize(maxWidth, maxHeight int) Window {
 // the given absolute file paths, so they can be dropped into other applications
 // (Finder, DAWs such as Ableton Live / Pro Tools, etc.).
 //
-// imagePath is an optional path to an image used as the drag cursor preview
-// (e.g. a waveform thumbnail); pass "" for the default file icon.
+// imagePath is an optional drag preview hint. Platforms may fall back to their
+// standard file icon; pass "" to use the default.
 //
-// This must be called in response to a frontend pointerdown/dragstart, before
-// the drag begins. Requires EnableFileDragOut in the window options.
+// Call before the next pointer gesture, for example when the hovered selection
+// changes. Requires EnableFileDragOut in the window options.
 // Available on desktop platforms. The caller must authorise access to the files.
 func (w *WebviewWindow) ArmFileDragOut(paths []string, imagePath string) error {
 	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
@@ -732,8 +732,8 @@ func (w *WebviewWindow) ArmFileDragOut(paths []string, imagePath string) error {
 }
 
 // DisarmFileDragOut cancels a previously armed file drag-out so that normal
-// pointer interaction with the webview resumes. It is called automatically when
-// a drag session ends, but can also be called explicitly to abort.
+// pointer interaction with the webview resumes. An active native session ends
+// when the user drops the files or presses Escape.
 func (w *WebviewWindow) DisarmFileDragOut() {
 	if w.impl == nil || w.isDestroyed() {
 		return
