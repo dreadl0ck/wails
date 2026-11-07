@@ -493,6 +493,9 @@ type serverWebviewWindow struct {
 	parent *WebviewWindow
 }
 
+func (w *serverWebviewWindow) armFileDragOut([]string, string) {}
+func (w *serverWebviewWindow) disarmFileDragOut()              {}
+
 // All webviewWindowImpl methods as no-ops for server mode
 func (w *serverWebviewWindow) setTitle(title string)           {}
 func (w *serverWebviewWindow) setSize(width, height int)       {}

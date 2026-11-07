@@ -714,7 +714,7 @@ func (w *WebviewWindow) SetMaxSize(maxWidth, maxHeight int) Window {
 // changes. Requires EnableFileDragOut in the window options.
 // Available on desktop platforms. The caller must authorise access to the files.
 func (w *WebviewWindow) ArmFileDragOut(paths []string, imagePath string) error {
-	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+	if !System.IsDesktop() {
 		return fmt.Errorf("file drag-out is only available on desktop platforms")
 	}
 	if !w.options.EnableFileDragOut {
