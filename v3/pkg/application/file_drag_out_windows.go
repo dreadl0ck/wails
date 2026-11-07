@@ -120,6 +120,8 @@ func (w *windowsWebviewWindow) beginFileDragOut() {
 	w.clearFileDragOut()
 	w32.ReleaseCapture()
 	performed, err := dragWindowsFiles(w.hwnd, s.paths)
+	globalApplication.debug("Native file drag capture after drop", "hwnd", w32.GetCapture())
+	w32.ReleaseCapture()
 	w.fileDragOut = nil
 	w.releaseFileDragMouse()
 	if err != nil {

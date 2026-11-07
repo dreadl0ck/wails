@@ -64,7 +64,7 @@ document.addEventListener('pointermove', event => {
   if (!(event.buttons & 1)) arm();
 });
 document.addEventListener('pointerup', arm);
-document.addEventListener('click', () => Events.Emit('file-drag-out:trace', 'click'));
+document.addEventListener('click', () => { Events.Emit('file-drag-out:trace', 'click'); arm(); });
 window.addEventListener('wails:file-drag-out-ended', event => { armed = false; Events.Emit('file-drag-out:ended', event.detail); });
 Events.Emit('file-drag-out:ready');
 </script></html>`

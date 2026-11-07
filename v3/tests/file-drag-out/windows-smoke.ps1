@@ -85,6 +85,11 @@ try {
         $origin = Client-Point $src 120 100
         [DragInput]::SetCursorPos(350, 300) | Out-Null
         [DragInput]::SetCursorPos($origin.X, $origin.Y) | Out-Null
+        $clicks = [regex]::Matches((Read-SourceLog), 'file-drag-out trace: click').Count
+        [DragInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 60
+        [DragInput]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+        Wait-For { [regex]::Matches((Read-SourceLog), 'file-drag-out trace: click').Count -gt $clicks } 'ordinary click while armed' | Out-Null
         Wait-For { [regex]::Matches((Read-SourceLog), 'file-drag-out trace: armed').Count -gt [regex]::Matches((Read-SourceLog), 'file-drag-out ended:').Count } 'armed source' | Out-Null
         [DragInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 60
@@ -117,7 +122,7 @@ try {
     Wait-For { Test-Path $output } 'drag after cancellation' | Out-Null
     $received = Get-Content $output -Raw | ConvertFrom-Json
     if (($received -join '|') -cne ($files -join '|')) { throw 'Second transfer changed the file paths.' }
-    Write-Output 'PASS: native file transfer, Unicode/spaces, cancellation, and reuse'
+    Write-Output 'PASS: ordinary click, native file transfer, Unicode/spaces, cancellation, and reuse'
 } catch {
     if (Test-Path $stdout) { Get-Content $stdout }
     if (Test-Path $stderr) { Get-Content $stderr }
