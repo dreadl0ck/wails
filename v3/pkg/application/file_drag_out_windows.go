@@ -53,6 +53,11 @@ func (w *windowsWebviewWindow) armFileDragOut(paths []string, imagePath string) 
 		if w.parent.isDestroyed() || (w.fileDragOut != nil && w.fileDragOut.active) {
 			return
 		}
+		if err := getNativeApplication().initializeFileDragApartment(); err != nil {
+			globalApplication.error("File drag-out unavailable: %v", err)
+			w.parent.fileDragOutEnded(false)
+			return
+		}
 		w.clearFileDragOut()
 		w.fileDragOut = &fileDragOutState{paths: paths, imagePath: imagePath}
 		fileDragOutWindows.Store(uintptr(w.hwnd), w)
@@ -204,20 +209,28 @@ func newWindowsFileDragData(paths []string) (*w32.IDataObject, error) {
 func dragWindowsFiles(hwnd w32.HWND, paths []string) (bool, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	hr, _, _ := initializeFileDragOLE.Call(0)
-	if int32(hr) < 0 {
-		return false, fmt.Errorf("OleInitialize: HRESULT %#x", uint32(hr))
-	}
-	defer uninitializeFileDragOLE.Call()
 	object, err := newWindowsFileDragData(paths)
 	if err != nil {
 		return false, err
 	}
 	defer object.Vtbl.Release.Call(uintptr(unsafe.Pointer(object)))
 	var effect uint32
-	hr, _, _ = shellDoDragDrop.Call(uintptr(hwnd), uintptr(unsafe.Pointer(object)), 0, 1, uintptr(unsafe.Pointer(&effect)))
+	hr, _, _ := shellDoDragDrop.Call(uintptr(hwnd), uintptr(unsafe.Pointer(object)), 0, 1, uintptr(unsafe.Pointer(&effect)))
 	if int32(hr) < 0 {
 		return false, fmt.Errorf("SHDoDragDrop: HRESULT %#x", uint32(hr))
 	}
 	return hr == 0x40100 && effect != 0, nil
+}
+
+// OLE drag/drop state belongs to the UI apartment, not an individual session.
+func (m *windowsApp) initializeFileDragApartment() error {
+	if m.fileDragOLEInitialized {
+		return nil
+	}
+	hr, _, _ := initializeFileDragOLE.Call(0)
+	if int32(hr) < 0 {
+		return fmt.Errorf("OleInitialize: HRESULT %#x", uint32(hr))
+	}
+	m.fileDragOLEInitialized = true
+	return nil
 }

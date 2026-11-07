@@ -31,7 +31,8 @@ var (
 const taskbarRestartDebounce = time.Second
 
 type windowsApp struct {
-	parent *App
+	fileDragOLEInitialized bool
+	parent                 *App
 
 	windowClass w32.WNDCLASSEX
 	instance    w32.HINSTANCE
@@ -194,6 +195,12 @@ func (m *windowsApp) setApplicationMenu(menu *Menu) {
 }
 
 func (m *windowsApp) run() error {
+	defer func() {
+		if m.fileDragOLEInitialized {
+			uninitializeFileDragOLE.Call()
+			m.fileDragOLEInitialized = false
+		}
+	}()
 	m.setupCommonEvents()
 	for eventID := range m.parent.applicationEventListeners {
 		m.on(eventID)
