@@ -99,6 +99,7 @@ def run(binary):
                 drag()
                 wait(output.exists, "drag after cancellation")
                 if json.loads(output.read_text()) != expected: raise RuntimeError("Second transfer changed the file paths")
+                wait(lambda: log.read_text().count("file-drag-out ended: map[performed:true]") >= 2, "final native completion")
                 print("PASS: ordinary click, multi-file native transfer, Unicode/spaces, cancellation, and reuse")
             except Exception:
                 print(log.read_text(), file=sys.stderr)

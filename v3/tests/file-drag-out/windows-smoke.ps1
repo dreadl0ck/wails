@@ -122,6 +122,7 @@ try {
     Wait-For { Test-Path $output } 'drag after cancellation' | Out-Null
     $received = Get-Content $output -Raw | ConvertFrom-Json
     if (($received -join '|') -cne ($files -join '|')) { throw 'Second transfer changed the file paths.' }
+    Wait-For { [regex]::Matches((Read-SourceLog), 'file-drag-out ended: map\[performed:true\]').Count -ge 2 } 'final native completion' | Out-Null
     Write-Output 'PASS: ordinary click, native file transfer, Unicode/spaces, cancellation, and reuse'
 } catch {
     if (Test-Path $stdout) { Get-Content $stdout }
@@ -131,5 +132,15 @@ try {
 } finally {
     [DragInput]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
     foreach ($process in @($source, $target)) { if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id -Force } }
-    Remove-Item $root -Recurse -Force
+    foreach ($process in @($source, $target)) {
+        if ($process) { $process.WaitForExit(); $process.Dispose() }
+    }
+    $cleanupDeadline = [DateTime]::UtcNow.AddSeconds(10)
+    while (Test-Path $root) {
+        try { Remove-Item $root -Recurse -Force }
+        catch {
+            if ([DateTime]::UtcNow -ge $cleanupDeadline) { throw }
+            Start-Sleep -Milliseconds 100
+        }
+    }
 }
