@@ -1,6 +1,7 @@
 param([string]$Binary, [string]$Receiver)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
+[Windows.Forms.Application]::SetHighDpiMode([Windows.Forms.HighDpiMode]::PerMonitorV2) | Out-Null
 
 if ($Receiver) {
     $form = New-Object System.Windows.Forms.Form
@@ -22,6 +23,8 @@ Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class DragInput {
+    public struct Point { public int X; public int Y; }
+    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hwnd, ref Point point);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
@@ -39,6 +42,13 @@ function Wait-For($Check, [string]$Label) {
         Start-Sleep -Milliseconds 50
     }
     throw "Timed out waiting for $Label"
+}
+
+function Client-Point([IntPtr]$Window, [int]$X, [int]$Y) {
+    $point = [DragInput+Point]::new()
+    $point.X = $X; $point.Y = $Y
+    if (![DragInput]::ClientToScreen($Window, [ref]$point)) { throw 'Could not map native client coordinates.' }
+    return $point
 }
 
 $root = Join-Path ([IO.Path]::GetTempPath()) ('wails-file-drag-' + [Guid]::NewGuid())
@@ -69,20 +79,28 @@ try {
     [DragInput]::SetWindowPos($dst, [IntPtr]::Zero, 450, 30, 300, 220, 0x40) | Out-Null
     function Invoke-Drag([bool]$Cancel) {
         $starts = [regex]::Matches((Read-SourceLog), 'Starting native file drag-out').Count
+        [DragInput]::SetWindowPos($src, [IntPtr]::Zero, 30, 30, 300, 220, 0x40) | Out-Null
         [DragInput]::SetForegroundWindow($src) | Out-Null
         Wait-For { [DragInput]::GetForegroundWindow() -eq $src } 'source focus' | Out-Null
+        $origin = Client-Point $src 120 100
         [DragInput]::SetCursorPos(350, 300) | Out-Null
-        [DragInput]::SetCursorPos(150, 150) | Out-Null
+        [DragInput]::SetCursorPos($origin.X, $origin.Y) | Out-Null
         Wait-For { [regex]::Matches((Read-SourceLog), 'file-drag-out trace: armed').Count -gt [regex]::Matches((Read-SourceLog), 'file-drag-out ended:').Count } 'armed source' | Out-Null
         [DragInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 60
-        foreach ($x in @(180, 190, 200)) { [DragInput]::SetCursorPos($x, 150) | Out-Null; Start-Sleep -Milliseconds 50 }
+        foreach ($offset in @(30, 40, 50)) { [DragInput]::SetCursorPos(($origin.X + $offset), $origin.Y) | Out-Null; Start-Sleep -Milliseconds 50 }
         Wait-For { [regex]::Matches((Read-SourceLog), 'Starting native file drag-out').Count -gt $starts } 'native drag start' | Out-Null
         if ($Cancel) {
             [DragInput]::keybd_event(0x1b, 0, 0, [UIntPtr]::Zero)
             [DragInput]::keybd_event(0x1b, 0, 2, [UIntPtr]::Zero)
         } else {
-            foreach ($x in (220..600 | Where-Object { $_ % 40 -eq 0 })) { [DragInput]::SetCursorPos($x, 150) | Out-Null; Start-Sleep -Milliseconds 50 }
+            $drop = Client-Point $dst 150 100
+            foreach ($step in 1..10) {
+                $x = [int]($origin.X + ($drop.X - $origin.X) * $step / 10)
+                $y = [int]($origin.Y + ($drop.Y - $origin.Y) * $step / 10)
+                [DragInput]::SetCursorPos($x, $y) | Out-Null
+                Start-Sleep -Milliseconds 50
+            }
         }
         [DragInput]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
     }

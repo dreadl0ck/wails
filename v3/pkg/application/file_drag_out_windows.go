@@ -26,7 +26,9 @@ var (
 	fileDragOutChildren     = syscall.NewLazyDLL("user32.dll").NewProc("EnumChildWindows")
 	fileDragOutMouseUp      = syscall.NewCallback(func(hwnd uintptr, _ uintptr) uintptr {
 		child := w32.HWND(hwnd)
-		if w32.GetClassName(child) != "Chrome_RenderWidgetHostHWND" {
+		className := w32.GetClassName(child)
+		globalApplication.debug("File drag input child", "class", className)
+		if className != "Chrome_RenderWidgetHostHWND" {
 			return 1
 		}
 		x, y, _ := w32.GetCursorPos()
