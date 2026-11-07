@@ -116,6 +116,8 @@ type (
 		setContentProtection(enabled bool)
 		attachModal(modalWindow *WebviewWindow)
 		setNonClientHitTestRegions([]nonClientHitTestRegion)
+		armFileDragOut(paths []string, imagePath string)
+		disarmFileDragOut()
 	}
 
 	nonClientHitTestKind string
@@ -294,6 +296,9 @@ func (w *WebviewWindow) onApplicationEvent(
 }
 
 func (w *WebviewWindow) markAsDestroyed() {
+	if w.impl != nil && w.options.EnableFileDragOut {
+		w.impl.disarmFileDragOut()
+	}
 	w.destroyedLock.Lock()
 	w.destroyed = true
 	w.destroyedLock.Unlock()
@@ -695,6 +700,45 @@ func (w *WebviewWindow) SetMaxSize(maxWidth, maxHeight int) Window {
 		}
 	})
 	return w
+}
+
+// ArmFileDragOut arms a native file drag-out for this window. After arming,
+// the next mouse drag over the window starts a native OS drag session carrying
+// the given absolute file paths, so they can be dropped into other applications
+// (Finder, DAWs such as Ableton Live / Pro Tools, etc.).
+//
+// imagePath is an optional path to an image used as the drag cursor preview
+// (e.g. a waveform thumbnail); pass "" for the default file icon.
+//
+// This must be called in response to a frontend pointerdown/dragstart, before
+// the drag begins. Requires EnableFileDragOut in the window options.
+// Available on desktop platforms. The caller must authorise access to the files.
+func (w *WebviewWindow) ArmFileDragOut(paths []string, imagePath string) error {
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		return fmt.Errorf("file drag-out is only available on desktop platforms")
+	}
+	if !w.options.EnableFileDragOut {
+		return fmt.Errorf("file drag-out is disabled for this window")
+	}
+	paths, err := fileDragOutPaths(paths)
+	if err != nil {
+		return err
+	}
+	if w.impl == nil || w.isDestroyed() {
+		return fmt.Errorf("file drag-out requires a running window")
+	}
+	w.impl.armFileDragOut(paths, imagePath)
+	return nil
+}
+
+// DisarmFileDragOut cancels a previously armed file drag-out so that normal
+// pointer interaction with the webview resumes. It is called automatically when
+// a drag session ends, but can also be called explicitly to abort.
+func (w *WebviewWindow) DisarmFileDragOut() {
+	if w.impl == nil || w.isDestroyed() {
+		return
+	}
+	w.impl.disarmFileDragOut()
 }
 
 // ExecJS executes the given javascript in the context of the window.

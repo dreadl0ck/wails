@@ -33,7 +33,7 @@ import * as System from "./system.js";
 import * as IOS from "./ios.js";
 import * as Android from "./android.js";
 import * as Updater from "./updater.js";
-import Window, { handleDragEnter, handleDragLeave, handleDragOver } from "./window.js";
+import Window, { handleDragEnter, handleDragLeave, handleDragOver, handleFileDragOutEnded } from "./window.js";
 import * as WML from "./wml.js";
 import { Stream, JSONStream, WailsSocket, type JSONSocket } from "./stream.js";
 
@@ -96,6 +96,7 @@ if (hasDOM) {
     window._wails.handleDragEnter = handleDragEnter;
     window._wails.handleDragLeave = handleDragLeave;
     window._wails.handleDragOver = handleDragOver;
+    window._wails.handleFileDragOutEnded = handleFileDragOutEnded;
 }
 
 if (hasDOM) {

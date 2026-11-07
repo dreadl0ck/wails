@@ -39,6 +39,7 @@ var edgeMap = map[string]uintptr{
 }
 
 type windowsWebviewWindow struct {
+	fileDragOut              *fileDragOutState
 	requestCancellation      *windowsRequestCancellation
 	windowImpl               unsafe.Pointer
 	parent                   *WebviewWindow

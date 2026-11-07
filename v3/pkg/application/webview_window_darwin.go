@@ -16,6 +16,7 @@ package application
 #import <WebKit/WebKit.h>
 #import <AppKit/AppKit.h>
 #import "webview_window_darwin_drag.h"
+#import "webview_window_darwin_dragout.h"
 
 struct WebviewPreferences {
     bool *TabFocusesLinks;
@@ -100,7 +101,7 @@ static NSWindow<WailsWebviewWindow>* createNativeWindow(int width, int height, b
 // Create a new Window or Panel. Everything after native class construction is
 // deliberately shared so the panel path receives every WKWebView/window option.
 void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWarningEnabled,
-		bool frameless, bool squareCorners, double cornerRadius, bool enableDragAndDrop,
+		bool frameless, bool squareCorners, double cornerRadius, bool enableDragAndDrop, bool enableFileDragOut,
 		struct WebviewPreferences preferences, const char* applicationNameForUserAgent,
 		bool isPanel, struct PanelPreferences panelPreferences, bool isNotchWindow,
 		int notchContentWidth, int notchContentHeight, const char* notchScreenID) {
@@ -225,6 +226,18 @@ void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWa
 		dragView.windowId = id;
 	}
 
+	if( enableFileDragOut ) {
+		// Overlay sits above the webview but is transparent to pointer events
+		// (hitTest: returns nil) until armed by the frontend.
+		WebviewDragOut* dragOutView = [[WebviewDragOut alloc] initWithFrame:NSMakeRect(0, 0, width-1, height-1)];
+		[dragOutView autorelease];
+
+		[dragOutView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+		[view addSubview:dragOutView positioned:NSWindowAbove relativeTo:webView];
+		dragOutView.windowId = id;
+		window.dragOutView = dragOutView;
+	}
+
 	window.webView = webView;
 	if (isNotchWindow) {
 		NSString* targetScreenID = nil;
@@ -237,6 +250,40 @@ void* windowNew(unsigned int id, int width, int height, bool fraudulentWebsiteWa
 			targetScreenID:targetScreenID];
 	}
 	return window;
+}
+
+// armFileDragOut arms the drag-out overlay with the given file paths and an
+// optional drag image. Must be called on the main thread.
+void armFileDragOut(void* window, char** paths, int pathCount, char* imagePath) {
+	WebviewWindow* nsWindow = (WebviewWindow*)window;
+	if (nsWindow == NULL || nsWindow.dragOutView == NULL) {
+		return;
+	}
+	WebviewDragOut* dragOutView = (WebviewDragOut*)nsWindow.dragOutView;
+
+	NSMutableArray<NSString*>* files = [NSMutableArray arrayWithCapacity:pathCount];
+	for (int i = 0; i < pathCount; i++) {
+		if (paths[i] != NULL) {
+			[files addObject:[NSString stringWithUTF8String:paths[i]]];
+		}
+	}
+
+	NSImage* image = nil;
+	if (imagePath != NULL && strlen(imagePath) > 0) {
+		NSString* imgPath = [NSString stringWithUTF8String:imagePath];
+		image = [[[NSImage alloc] initWithContentsOfFile:imgPath] autorelease];
+	}
+
+	[dragOutView arm:files image:image];
+}
+
+// disarmFileDragOut disables the drag-out overlay. Must be called on the main thread.
+void disarmFileDragOut(void* window) {
+	WebviewWindow* nsWindow = (WebviewWindow*)window;
+	if (nsWindow == NULL || nsWindow.dragOutView == NULL) {
+		return;
+	}
+	[(WebviewDragOut*)nsWindow.dragOutView disarm];
 }
 
 
@@ -1450,9 +1497,49 @@ func newWindowImpl(parent *WebviewWindow) *macosWebviewWindow {
 		// Inject runtime core
 		js := runtime.Core(globalApplication.impl.GetFlags(globalApplication.options))
 		js += fmt.Sprintf("window._wails.flags.enableFileDrop=%v;", result.parent.options.EnableFileDrop)
+		js += fmt.Sprintf("window._wails.flags.enableFileDragOut=%v;", result.parent.options.EnableFileDragOut)
 		result.execJS(js)
 	})
 	return result
+}
+
+// armFileDragOut arms the native drag-out overlay with the given absolute file
+// paths and an optional drag image path. The next mouse drag over the window
+// will start a native NSDraggingSession carrying those files. Runs on the main thread.
+func (w *macosWebviewWindow) armFileDragOut(paths []string, imagePath string) {
+	InvokeSync(func() {
+		if w.nsWindow == nil {
+			return
+		}
+		cPaths := make([]*C.char, len(paths))
+		for i, p := range paths {
+			cPaths[i] = C.CString(p)
+		}
+		defer func() {
+			for _, cp := range cPaths {
+				C.free(unsafe.Pointer(cp))
+			}
+		}()
+
+		cImagePath := C.CString(imagePath)
+		defer C.free(unsafe.Pointer(cImagePath))
+
+		var pathsPtr **C.char
+		if len(cPaths) > 0 {
+			pathsPtr = &cPaths[0]
+		}
+		C.armFileDragOut(w.nsWindow, pathsPtr, C.int(len(cPaths)), cImagePath)
+	})
+}
+
+// disarmFileDragOut disables the native drag-out overlay. Runs on the main thread.
+func (w *macosWebviewWindow) disarmFileDragOut() {
+	InvokeSync(func() {
+		if w.nsWindow == nil {
+			return
+		}
+		C.disarmFileDragOut(w.nsWindow)
+	})
 }
 
 func (w *macosWebviewWindow) setTitle(title string) {
@@ -1634,6 +1721,7 @@ func (w *macosWebviewWindow) run() {
 			C.bool(macOptions.CornerType == MacWindowCornerTypeSquare),
 			C.double(macOptions.CornerRadius),
 			C.bool(options.EnableFileDrop),
+			C.bool(options.EnableFileDragOut),
 			w.getWebviewPreferences(),
 			appName,
 			C.bool(macOptions.WindowClass == MacWindowClassPanel),

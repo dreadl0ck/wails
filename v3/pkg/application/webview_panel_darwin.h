@@ -13,6 +13,7 @@
 - (BOOL)resignFirstResponder;
 
 @property (assign) WKWebView* webView;
+@property (assign) NSView* dragOutView;
 @property BOOL disableEscapeExitsFullscreen;
 
 @end

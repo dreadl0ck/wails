@@ -27,21 +27,25 @@ type dragInfo struct {
 }
 
 type linuxWebviewWindow struct {
-	id            uint
-	application   pointer
-	window        pointer
-	webview       pointer
-	parent        *WebviewWindow
-	menubar       pointer
-	vbox          pointer
-	accels        pointer
-	lastWidth     int
-	lastHeight    int
-	windowState   linuxWindowState
-	stateObserved bool
-	drag          dragInfo
-	lastX, lastY  int
-	gtkmenu       pointer
+	fileDragOut        *fileDragOutState
+	fileDragOutOverlay unsafe.Pointer
+	fileDragOutSource  unsafe.Pointer
+	fileDragOutPress   unsafe.Pointer
+	id                 uint
+	application        pointer
+	window             pointer
+	webview            pointer
+	parent             *WebviewWindow
+	menubar            pointer
+	vbox               pointer
+	accels             pointer
+	lastWidth          int
+	lastHeight         int
+	windowState        linuxWindowState
+	stateObserved      bool
+	drag               dragInfo
+	lastX, lastY       int
+	gtkmenu            pointer
 	// menuInstalled is the explicit menu whose bar is shown in the window, so
 	// a later setMenu knows which accelerators to unregister. nil when the
 	// window shows no menu or the application menu.
@@ -443,6 +447,9 @@ func (w *linuxWebviewWindow) run() {
 	}
 
 	w.window, w.webview, w.vbox, w.menubar = windowNew(app.application, w.gtkmenu, w.parent.options.Linux.MenuStyle, w.parent.id, w.parent.options.Linux.WebviewGpuPolicy)
+	if w.parent.options.EnableFileDragOut {
+		w.installFileDragOutOverlay()
+	}
 	if explicit := w.parent.options.Linux.Menu; explicit != nil && w.menubar != nilPointer {
 		w.menuInstalled = explicit
 	}

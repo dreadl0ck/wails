@@ -1,0 +1,55 @@
+name: File drag-out v3
+on:
+  push:
+    branches: [feat/native-file-dragout]
+  pull_request:
+    paths:
+      - 'v3/pkg/application/*drag*'
+      - 'v3/pkg/application/webview_window*'
+      - 'v3/internal/runtime/desktop/@wailsio/runtime/src/window*'
+      - 'v3/tests/file-drag-out/**'
+      - '.github/workflows/file-drag-out-v3.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        tags: ['', gtk3, purego, 'purego,gtk3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: v3/go.mod
+      - name: Install native libraries
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev xvfb xauth xdotool dbus-x11 python3-gi gir1.2-gtk-3.0
+      - name: Test and build
+        working-directory: v3
+        env:
+          TAGS: ${{ matrix.tags }}
+        run: |
+          if [[ "$TAGS" == *purego* ]]; then export CGO_ENABLED=0; fi
+          go test -tags "$TAGS" ./pkg/application -run '^TestFileDragOut' -count=1
+          go build -tags "$TAGS" -o "$RUNNER_TEMP/file-drag-out" ./tests/file-drag-out
+      - name: Native drag, cancel and reuse
+        working-directory: v3
+        run: xvfb-run -a dbus-run-session -- python3 tests/file-drag-out/linux-smoke.py "$RUNNER_TEMP/file-drag-out"
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: v3/go.mod
+      - name: Native data-object tests
+        working-directory: v3
+        run: go test ./pkg/application -run '^TestFileDragOut' -count=1
+      - name: Build probe
+        working-directory: v3
+        run: go build -o "$env:RUNNER_TEMP/file-drag-out.exe" ./tests/file-drag-out
+      - name: Native drag, cancel and reuse
+        working-directory: v3
+        run: ./tests/file-drag-out/windows-smoke.ps1 -Binary "$env:RUNNER_TEMP/file-drag-out.exe"

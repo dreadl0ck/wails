@@ -60,6 +60,8 @@ const (
 	WindowFilesDropped               = 50
 	WindowPrint                      = 51
 	WindowSetScreen                  = 52
+	WindowArmFileDragOut             = 53
+	WindowDisarmFileDragOut          = 54
 )
 
 var windowMethodNames = map[int]string{
@@ -116,6 +118,8 @@ var windowMethodNames = map[int]string{
 	WindowSnapAssist:                 "SnapAssist",
 	WindowPrint:                      "Print",
 	WindowSetScreen:                  "SetScreen",
+	WindowArmFileDragOut:             "ArmFileDragOut",
+	WindowDisarmFileDragOut:          "DisarmFileDragOut",
 }
 
 var unit = struct{}{}
@@ -417,6 +421,24 @@ func (m *MessageProcessor) processWindowMethod(
 			return nil, errs.NewInvalidWindowCallErrorf("screen not found: %s", *screenID)
 		}
 		window.SetScreen(screen)
+		return unit, nil
+	case WindowArmFileDragOut:
+		var payload struct {
+			Paths     []string `json:"paths"`
+			ImagePath string   `json:"imagePath"`
+		}
+		if err := req.Args.ToStruct(&payload); err != nil {
+			return nil, errs.WrapInvalidWindowCallErrorf(err, "invalid file drag-out payload")
+		}
+		target, ok := window.(interface{ ArmFileDragOut([]string, string) error })
+		if !ok {
+			return nil, errs.NewInvalidWindowCallErrorf("window does not support file drag-out")
+		}
+		return unit, target.ArmFileDragOut(payload.Paths, payload.ImagePath)
+	case WindowDisarmFileDragOut:
+		if target, ok := window.(interface{ DisarmFileDragOut() }); ok {
+			target.DisarmFileDragOut()
+		}
 		return unit, nil
 	default:
 		return nil, errs.NewInvalidWindowCallErrorf("Unknown method %d", req.Method)

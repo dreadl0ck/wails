@@ -193,6 +193,15 @@ type WebviewWindowOptions struct {
 	// PermissionDefault. Cross-platform; see the Permission constants for the
 	// per-platform meaning of the default.
 	Permissions map[PermissionType]Permission
+	// EnableFileDragOut enables dragging files out of the window to other
+	// applications (Finder, DAWs, etc.) as a native file drag.
+	//
+	// Because macOS/Windows require a drag session to start from within a real
+	// mouse event, the frontend must arm the drag with the file paths before
+	// the user begins dragging, via Window.ArmFileDragOut(paths, imagePath).
+	//
+	// Available on macOS, Windows and Linux. Callers must authorise the file paths.
+	EnableFileDragOut bool
 
 	// OpenInspectorOnStartup will open the inspector when the window is first shown.
 	// On macOS this uses a private WebKit API and is ignored unless built with

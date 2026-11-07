@@ -69,6 +69,16 @@ const SnapAssistMethod                  = 49;
 const FilesDropped                      = 50;
 const PrintMethod                       = 51;
 const SetScreenMethod                   = 52;
+const ArmFileDragOutMethod               = 53;
+const DisarmFileDragOutMethod            = 54;
+
+/** @internal */
+export function handleFileDragOutEnded(performed: boolean): void {
+    cleanupNativeDrag();
+    window.dispatchEvent(new CustomEvent('wails:file-drag-out-ended', {
+        detail: { performed },
+    }));
+}
 
 /**
  * Finds the nearest drop target element by walking up the DOM tree.
@@ -693,6 +703,21 @@ class Window {
      */
     Print(): Promise<void> {
         return this[callerSym](PrintMethod);
+    }
+
+    /**
+     * Arms a copy-only native file drag before the next pointer gesture.
+     * Requires EnableFileDragOut. On macOS it can also arm a drag already in progress.
+     * Paths must be absolute and exist. The application must authorise access.
+     * Listen for `wails:file-drag-out-ended` on window for completion or cancellation.
+     */
+    ArmFileDragOut(paths: string[], imagePath = ''): Promise<void> {
+        return this[callerSym](ArmFileDragOutMethod, { paths, imagePath });
+    }
+
+    /** Clears an armed drag. An active native session ends on drop or Escape. */
+    DisarmFileDragOut(): Promise<void> {
+        return this[callerSym](DisarmFileDragOutMethod);
     }
 }
 
